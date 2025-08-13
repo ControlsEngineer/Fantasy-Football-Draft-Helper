@@ -1,9 +1,8 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import csv
 from Player_Selector import *
 
-# ---------- Global styles ----------
+# Custom CSS for styling
 st.markdown("""
     <style>
         .main-title {
@@ -42,7 +41,7 @@ st.markdown("""
             white-space: nowrap;
         }
         .stButton>button:hover {
-            background-color: rgba(119, 119, 119, 0.5);
+            background-color: rgba(119, 119, 119, 0.5); /* Lighter Gray with 80% opacity on Hover */
         }
         .stTextInput>div>div>input {
             background-color: #f7f9fa;
@@ -50,85 +49,16 @@ st.markdown("""
             border: 1px solid #bdc3c7;
             padding: 8px;
         }
+        /* Small points text shown to the right of each player button */
+        .points-badge {
+            font-size: 12px;
+            color: #9aa5b1;
+            margin: 5px 8px;
+            text-align: right;
+            white-space: nowrap;
+        }
     </style>
 """, unsafe_allow_html=True)
-
-# ---------- Component: rich "player button" that returns a click payload ----------
-def player_pick_button(player_name: str, points: str, pos: str, key: str):
-    """
-    Render a custom-styled button (name + small right-aligned 'Pts: XX')
-    and return a dict {'player': name, 'pos': pos} when clicked.
-    """
-    # Inline HTML/CSS/JS lives inside an iframe; styles here won't leak
-    html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<style>
-  html, body {{
-    margin: 0; padding: 0;
-    background: transparent;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
-  }}
-  .player-btn {{
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    width: 100%;
-    box-sizing: border-box;
-    padding: 10px 14px;
-    margin: 6px 0;
-    border-radius: 8px;
-    background: #212121;
-    color: #ffffff;
-    text-decoration: none;
-    border: none;
-    cursor: pointer;
-  }}
-  .player-btn:hover {{ background: rgba(119, 119, 119, 0.5); }}
-  .player-name {{
-    font-size: 16px;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }}
-  .player-pts {{
-    font-size: 12px;
-    opacity: 0.85;
-    white-space: nowrap;
-    margin-left: 12px;
-  }}
-  /* Reset button native styles for consistency across browsers */
-  button {{
-    all: unset;
-    display: block;
-  }}
-</style>
-</head>
-<body>
-  <button id="btn" class="player-btn" title="{player_name}">
-    <span class="player-name">{player_name}</span>
-    <span class="player-pts">Pts: {points}</span>
-  </button>
-  <script>
-    // Streamlit component handshake: send a value back on click
-    const send = (v) => {{
-      window.parent.postMessage(
-        {{ isStreamlitMessage: true, type: "streamlit:setComponentValue", value: v }},
-        "*"
-      );
-    }};
-    document.getElementById("btn").addEventListener("click", () => {{
-      send({{player: {repr(player_name)}, pos: {repr(pos)}}});
-    }});
-  </script>
-</body>
-</html>
-"""
-    # height ~48 to align with native buttons; adjust if you prefer
-    return components.html(html, height=48, scrolling=False, key=key)
 
 ### initialize variables to stay keep throughout
 def initialize_session_state():
@@ -163,9 +93,7 @@ initialize_session_state()
 def show_popup(data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size):
     with st.form(key='popup_form'):
         st.write('You should draft:')
-        Player_Name, Player_Position, Player_Points, Player_Team = Player_selector(
-            data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size
-        )
+        Player_Name, Player_Position, Player_Points, Player_Team = Player_selector(data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size)
         submit_button = st.form_submit_button(f'{Player_Name}')
         if submit_button:
             st.session_state.player_name = Player_Name
@@ -239,7 +167,7 @@ def main_page():
             for player, position, points, team in list(reader):
                 if position in data:
                     data[position].append((player, position, points, team))
-
+    print(st.session_state.recently_deleted_players)
     recently_added_players = st.session_state.recently_added_players # List to keep track of players added by the user in order
     recently_deleted_players = st.session_state.recently_deleted_players # Stack to keep track of players deleted from the board
     added_players = st.session_state.added_players # For my team
@@ -286,6 +214,7 @@ def main_page():
 
     # Display the popup if it's open, and modify the board based on the results
     if st.session_state.popup_open:
+        print(st.session_state.Positions_Remaining)
         show_popup(data, QBs, RBs, WRs, TEs, st.session_state.Positions_Remaining, league_size)
 
     # Process the drafted player after the popup is closed
@@ -337,6 +266,9 @@ def main_page():
         # Reset the draft trigger flag
         st.session_state.draft_triggered = False
 
+    # Display the saved input value - don't need but saved to reference on how to call the variable
+    # st.write("Saved Input Value:", st.session_state.input_value)
+
     ### Undo Options 
     col1, col2 = st.columns(2)     
     with col1:
@@ -352,6 +284,7 @@ def main_page():
                 # Check if the last drafted player is in any of the my_players lists
                 if player_name not in My_QBs and player_name not in My_RBs and player_name not in My_WRs and player_name not in My_TEs:
                     st.warning(f"{player_name} is not on your team. Use the Undo Board Pick button.")
+                    # Optionally, you can push back the last drafted player to recently_added_players
                     recently_added_players.append(last_drafted_player)  # Add it back so it can be undone later
                 else:
                     # Add the player back to the data
@@ -409,6 +342,7 @@ def main_page():
                     if player_name in player_check:
                         check_for_player = True
                         
+                
                 if check_for_player == True:
                     st.warning("Last player off board was drafted by you, please use the undo draft pick button")
                 
@@ -448,15 +382,12 @@ def main_page():
         drafted_player = st.session_state.drafted_player
         if st.session_state.get('button_pressed_draft', False):  # Check if the input was activated
             drafted_player_position = 'Not Found'
-            deleted_player = None
             for key in data:
                 for idx, player_tuple in enumerate(data[key]):
                     if drafted_player.lower() == player_tuple[0].lower():  # Case insensitive comparison
                         drafted_player_position = player_tuple[1]  # Get the position
                         deleted_player = data[key].pop(idx)  # Remove and retrieve the player
-                        break
-                if deleted_player:
-                    break
+                        break  # Exit the loop since the player is found
     
             # Update the remaining positions list with new player, and add player to "My Team List"
             if drafted_player_position == 'QB':
@@ -527,48 +458,58 @@ def main_page():
 
 
 
-    ### Player Buttons (now rich buttons via component; same behavior as before)
+    ### Player Buttons
     cola, colb = st.columns(2)
-
-    def handle_board_click(payload):
-        """Remove clicked player from board and push to 'recently_deleted_players'."""
-        if not payload:
-            return
-        player_name = payload.get("player")
-        player_pos = payload.get("pos")
-        if not player_name or not player_pos:
-            return
-        # Remove from board
-        position_list = st.session_state.data.get(player_pos, [])
-        for idx, player_tuple in enumerate(position_list):
-            if player_name == player_tuple[0]:
-                deleted_player = position_list.pop(idx)
-                st.session_state.data[player_pos] = position_list
-                st.session_state.recently_deleted_players.append(
-                    (deleted_player[0], deleted_player[1], deleted_player[2], deleted_player[3])
-                )
-                st.rerun()
-                break
-
+    
     with cola:
         for position in ['RB', 'QB']:
             available_players = data[position][:4]  # Get the top 4 players for this position
             st.markdown(f'<div class="player-section" style="text-align: center;">Next {position}s</div>', unsafe_allow_html=True)
-            for i, player in enumerate(available_players):
+            for player in available_players:
                 player_name = player[0]
                 player_points = player[2]  # third column from CSV
-                payload = player_pick_button(player_name, player_points, position, key=f"btn-{position}-{i}-{player_name}")
-                handle_board_click(payload)
+                # Two-column row: left = button, right = small "Pts: XX"
+                row_btn, row_pts = st.columns([0.75, 0.25])
+                with row_btn:
+                    if st.button(player_name, key=player_name, use_container_width=True):
+                        # Delete Drafted Player from board
+                        for key in data:
+                            for idx, player_tuple in enumerate(data[key]):
+                                if player_name == player_tuple[0]:
+                                    deleted_player = data[key].pop(idx)  # Remove the player
+                                    removed_player = player_name
+                                    st.session_state.data = data
+                                    recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3]))
+                                    st.session_state.recently_deleted_players = recently_deleted_players
+                                    st.rerun()
+                                    break
+                with row_pts:
+                    st.markdown(f'<div class="points-badge">Pts: {player_points}</div>', unsafe_allow_html=True)
     
     with colb:
         for position in ['WR', 'TE']:
             available_players = data[position][:4]  # Get the top 4 players for this position
             st.markdown(f'<div class="player-section" style="text-align: center;">Next {position}s</div>', unsafe_allow_html=True)
-            for i, player in enumerate(available_players):
+            for player in available_players:
                 player_name = player[0]
                 player_points = player[2]  # third column from CSV
-                payload = player_pick_button(player_name, player_points, position, key=f"btn-{position}-{i}-{player_name}")
-                handle_board_click(payload)
+                # Two-column row: left = button, right = small "Pts: XX"
+                row_btn, row_pts = st.columns([0.75, 0.25])
+                with row_btn:
+                    if st.button(player_name, key=player_name, use_container_width=True):
+                        # Delete Drafted Player from board
+                        for key in data:
+                            for idx, player_tuple in enumerate(data[key]):
+                                if player_name == player_tuple[0]:
+                                    deleted_player = data[key].pop(idx)  # Remove the player
+                                    removed_player = player_name
+                                    st.session_state.data = data
+                                    recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3]))
+                                    st.session_state.recently_deleted_players = recently_deleted_players
+                                    st.rerun()
+                                    break
+                with row_pts:
+                    st.markdown(f'<div class="points-badge">Pts: {player_points}</div>', unsafe_allow_html=True)
 
     # Sidebar - Team Selection
     st.sidebar.markdown('<div class="section-header">Your Team</div>', unsafe_allow_html=True)
@@ -585,8 +526,10 @@ def main_page():
         
         # Display players in a numbered list
         for i, player in enumerate(my_players, start=1):
-            st.sidebar.text(f"{i}. {player}")
+                st.sidebar.text(f"{i}. {player}")
         
+
+
 
 # Main application logic
 if 'page' not in st.session_state:
