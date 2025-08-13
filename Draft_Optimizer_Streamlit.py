@@ -13,41 +13,44 @@ st.markdown("""
             margin-bottom: 25px;
         }
         .section-header {
-            font-size: 28px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-top: 25px;
+            font-size: 22px;
+            font-weight: 600;
+            color: #34495e;
+            margin-top: 20px;
             margin-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
         }
-        .player-section {
-            font-size: 20px;
-            color: #2980b9;
-            white-space: nowrap;
-        }
-        .sidebar .block-container {
-            background-color: #ecf0f1;
-            padding: 15px;
-            border-radius: 10px;
-        }
-        .stButton>button {
-            background-color: #212121; /* Dark Gray */
-            color: #ffffff; /* White text */
+        .player-card {
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
             border-radius: 8px;
             padding: 8px 20px;
             margin: 5px;
             font-size: 16px;
-            font-weight: bold;
+        }
+        .button {
+            background-color: #3498db;
+            color: white;
+            padding: 8px 16px;
             border: none;
-            white-space: nowrap;
+            border-radius: 6px;
+            cursor: pointer;
         }
-        .stButton>button:hover {
-            background-color: rgba(119, 119, 119, 0.5); /* Lighter Gray with 80% opacity on Hover */
-        }
-        .stTextInput>div>div>input {
-            background-color: #f7f9fa;
-            border-radius: 5px;
-            border: 1px solid #bdc3c7;
-            padding: 8px;
+        .button:hover { background-color: #2980b9; }
+        .danger { background-color: #e74c3c; }
+        .danger:hover { background-color: #c0392b; }
+        .success { background-color: #2ecc71; }
+        .success:hover { background-color: #27ae60; }
+        .neutral { background-color: #95a5a6; }
+        .neutral:hover { background-color: #7f8c8d; }
+        .team-slot {
+            background-color: #ffffff;
+            border: 1px dashed #bdc3c7;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            min-height: 32px;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -55,7 +58,7 @@ st.markdown("""
 ### initialize variables to stay keep throughout
 def initialize_session_state():
     if 'data' not in st.session_state:
-        st.session_state.data = {'QB': [], 'RB': [], 'WR': [], 'TE': []}  # total dictionary of players
+        st.session_state.data = {'QB': [], 'RB': [], 'WR': [], 'TE': []}  # total dictionary of players (tuples of 4)
     if 'recently_added_players' not in st.session_state:
         st.session_state.recently_added_players = []  # List to keep track of players added by the user in order
     if 'recently_deleted_players' not in st.session_state:
@@ -63,12 +66,7 @@ def initialize_session_state():
     if 'added_players' not in st.session_state:
         st.session_state.added_players = []  # For my team
     if 'Positions_Remaining' not in st.session_state:
-        st.session_state.Positions_Remaining = []  # Track the amount of players left to draft at each position
-    if 'drafted_player' not in st.session_state:
-        st.session_state.drafted_player = ""  # For manually drafting a player
-    if 'removed_player' not in st.session_state:
-        st.session_state.removed_player = ""  # For manually removing a player
-    # Positional players left on the board
+        st.session_state.Positions_Remaining = [0, 0, 0, 0]  # QBs, RBs, WRs, TEs
     if 'My_QBs' not in st.session_state:
         st.session_state.My_QBs = []
     if 'My_RBs' not in st.session_state:
@@ -77,6 +75,11 @@ def initialize_session_state():
         st.session_state.My_WRs = []
     if 'My_TEs' not in st.session_state:
         st.session_state.My_TEs = []
+    if 'popup_open' not in st.session_state:
+        st.session_state.popup_open = False
+    if 'draft_triggered' not in st.session_state:
+        st.session_state.draft_triggered = False
+
 # Call the initialization function at the start of your script
 initialize_session_state()
 
@@ -85,7 +88,12 @@ initialize_session_state()
 def show_popup(data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size):
     with st.form(key='popup_form'):
         st.write('You should draft:')
-        Player_Name, Player_Position, Player_Points, Player_Team, Player_ADP = Player_selector(data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size)
+        # Player_Selector can return 4 or 5 values. If 5, ignore the 5th.
+        rec = Player_Selector(data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size)
+        if len(rec) >= 4:
+            Player_Name, Player_Position, Player_Points, Player_Team = rec[:4]
+        else:
+            Player_Name, Player_Position, Player_Points, Player_Team = rec[0], rec[1], rec[2], ''
         submit_button = st.form_submit_button(f'{Player_Name}')
         
         if submit_button:
@@ -93,7 +101,6 @@ def show_popup(data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size):
             st.session_state.player_position = Player_Position
             st.session_state.player_points = Player_Points
             st.session_state.player_team = Player_Team
-            st.session_state.player_ADP = Player_ADP
             st.session_state.popup_open = False  # Close the popup
             st.session_state.draft_triggered = True  # Set a flag to indicate a draft was triggered
             st.rerun()  # Use rerun to refresh the app state
@@ -106,419 +113,208 @@ def initial_page():
     league_size = st.selectbox("League Size", [8, 10, 12], help="Choose your league size")
     scoring_format = st.selectbox("Scoring Format", ["Standard", "0.5 PPR", "PPR"], help="Select your scoring format")
     
-    # Set draft position quantities based on league size
+    # Set draft positions based on league size
     if league_size == 8:
-        draft_count = {
-            "Number of QBs to Draft": 2,
-            "Number of RBs to Draft": 5,
-            "Number of WRs to Draft": 5,
-            "Number of TEs to Draft": 1
-        }
+        QBs = 2
+        RBs = 5
+        WRs = 5
+        TEs = 1
     elif league_size == 10:
-        draft_count = {
-            "Number of QBs to Draft": 2,
-            "Number of RBs to Draft": 6,
-            "Number of WRs to Draft": 6,
-            "Number of TEs to Draft": 1
-        }
-    else:  # 12-team league
-        draft_count = {
-            "Number of QBs to Draft": 2,
-            "Number of RBs to Draft": 7,
-            "Number of WRs to Draft": 6,
-            "Number of TEs to Draft": 2
-        }
-    
+        QBs = 2
+        RBs = 6
+        WRs = 6
+        TEs = 1
+    else:  # 12 teams
+        QBs = 2
+        RBs = 7
+        WRs = 6
+        TEs = 2
+
+    # Store them for later
+    st.session_state.Positions_Remaining = [QBs, RBs, WRs, TEs]
+
+    # Enter button
     if st.button("Enter"):
-        st.session_state.league_size = league_size
-        st.session_state.scoring_format = scoring_format
-        st.session_state.draft_count = draft_count
-        st.session_state.page = "main"
+        st.session_state.page = 'main'
         st.rerun()
 
-# Function to create the main page
+# Function to create the main app page
 def main_page():
-    st.markdown('<div class="main-title">Fantasy Football Draft Aid 2025</div>', unsafe_allow_html=True)
-    st.write(' ')
-    league_size = st.session_state.get("league_size", "8")
-    scoring_format = st.session_state.get("scoring_format", "0.5 PPR")
-    draft_count = st.session_state.get("draft_count", {})
-    
-    # Choose CSV based on scoring format
-    if scoring_format == 'Standard':
+    st.markdown('<div class="main-title">Fantasy Football Draft Aid</div>', unsafe_allow_html=True)
+
+    # Load scoring format
+    scoring_format = 'player_rankings_PPR.csv'
+    if st.session_state.get('page_scoring') == 'Standard':
         scoring_format = 'player_rankings_standard.csv'
-    elif scoring_format == '0.5 PPR':
+    elif st.session_state.get('page_scoring') == '0.5 PPR':
         scoring_format = 'player_rankings_half_PPR.csv'
-    elif scoring_format == 'PPR':
-        scoring_format = 'player_rankings_PPR.csv'
-   
-    # Open CSV file with {player, position, projected points, Team, and ADP}, and convert it to a list, but only the first time
+
+    # Open CSV file (player, position, points, team) and convert it to a list once
     data = st.session_state.data
     if data == {'QB': [], 'RB': [], 'WR': [], 'TE': []}:
-        with open(scoring_format, newline='', encoding='utf-8-sig') as f:
-            reader = csv.reader(f)
-            for player, position, points, team, adp in list(reader):
-                if position in data:
-                    data[position].append((player, position, points, team, adp))
-    print(st.session_state.recently_deleted_players)
-    recently_added_players = st.session_state.recently_added_players # List to keep track of players added by the user in order
-    recently_deleted_players = st.session_state.recently_deleted_players # Stack to keep track of players deleted from the board
-    added_players = st.session_state.added_players # For my team
+        try:
+            with open(scoring_format, newline='', encoding='utf-8-sig') as f:
+                reader = csv.reader(f)
+                for player, position, points, team in list(reader):
+                    # Skip headers or malformed rows
+                    if position not in {'QB','RB','WR','TE'}:
+                        continue
+                    data[position].append((player, position, points, team))
+        except FileNotFoundError:
+            st.error(f"Could not find rankings file: {scoring_format}. Place it next to this script or provide the correct path.")
+            st.stop()
 
-    # Initialize player counts
-    Number_of_QBs = draft_count['Number of QBs to Draft']
-    Number_of_RBs = draft_count['Number of RBs to Draft']
-    Number_of_WRs = draft_count['Number of WRs to Draft']
-    Number_of_TEs = draft_count['Number of TEs to Draft']
-
-    # Initialize Positions_Remaining only if it hasn't been set before
-    if not st.session_state.Positions_Remaining:
-        st.session_state.Positions_Remaining = [Number_of_QBs, Number_of_RBs, Number_of_WRs, Number_of_TEs]
+    # Keep local aliases
+    QBs, RBs, WRs, TEs = st.session_state.Positions_Remaining
     
-    # Break the data list into positional lists
-    QBs = list(data['QB'])
-    RBs = list(data['RB'])
-    WRs = list(data['WR'])
-    TEs = list(data['TE'])
+    # If popup requested, show it
+    if st.session_state.get('popup_open', False):
+        show_popup(data, QBs, RBs, WRs, TEs, st.session_state.Positions_Remaining, sum(st.session_state.Positions_Remaining))
 
-    # Initialize Team
-    My_QBs = st.session_state.My_QBs
-    if My_QBs == []:
-        My_QBs = [' '] * Number_of_QBs
-    My_RBs = st.session_state.My_RBs
-    if My_RBs == []:
-        My_RBs = [' '] * Number_of_RBs
-    My_WRs = st.session_state.My_WRs
-    if My_WRs == []:
-        My_WRs = [' '] * Number_of_WRs
-    My_TEs = st.session_state.My_TEs
-    if My_TEs == []:
-        My_TEs = [' '] * Number_of_TEs
-    
-    # Initialize Pop Up Window Variables
-    if 'popup_open' not in st.session_state:
-        st.session_state.popup_open = False
-    if 'draft_triggered' not in st.session_state:
-        st.session_state.draft_triggered = False
+    # Draft recommendation trigger
+    if st.button("Recommend a Pick"):
+        st.session_state.popup_open = True
+        st.rerun()
 
-    # Button Click
-    if st.button("Draft a Player", use_container_width=True):
-        st.session_state.popup_open = True       
+    # Layout for available players
+    col1, col2, col3, col4 = st.columns(4)
 
-    # Display the popup if it's open, and modify the board based on the results
-    if st.session_state.popup_open:
-        print(st.session_state.Positions_Remaining)
-        show_popup(data, QBs, RBs, WRs, TEs, st.session_state.Positions_Remaining, league_size)
-
-    # Process the drafted player after the popup is closed
-    if st.session_state.get('draft_triggered', False):
-        Player_Name = st.session_state.player_name
-        Player_Position = st.session_state.player_position
-        Player_Points = st.session_state.player_points
-        Player_Team = st.session_state.player_team 
-        Player_ADP = st.session_state.player_ADP 
-        # Delete Drafted Player from board
-        for key in data:
-            for idx, player_tuple in enumerate(data[key]):
-                if Player_Name == player_tuple[0]:
-                    data[key].pop(idx)  # Remove the player
-                    st.session_state.data = data
-                    break                  
-        # Append the drafted player's name to the added_players list
-        added_players.append(Player_Name)
-        recently_added_players.append((Player_Name, Player_Position, Player_Points, Player_Team, Player_ADP))
-        # Update the remaining positions list with new player, and add player to "My Team List"
-        if Player_Position == 'QB':
-            st.session_state.Positions_Remaining[0] -= 1
-            for i in range(len(My_QBs)):
-                if My_QBs[i] == ' ':
-                    My_QBs[i] = Player_Name
-                    st.session_state.My_QBs = My_QBs
-                    break
-        elif Player_Position == 'RB':
-            st.session_state.Positions_Remaining[1] -= 1
-            for i in range(len(My_RBs)):
-                if My_RBs[i] == ' ':
-                    My_RBs[i] = Player_Name
-                    st.session_state.My_RBs = My_RBs
-                    break
-        elif Player_Position == 'WR':
-            st.session_state.Positions_Remaining[2] -= 1
-            for i in range(len(My_WRs)):
-                if My_WRs[i] == ' ':
-                    My_WRs[i] = Player_Name
-                    st.session_state.My_WRs = My_WRs
-                    break
-        elif Player_Position == 'TE':
-            st.session_state.Positions_Remaining[3] -= 1
-            for i in range(len(My_TEs)):
-                if My_TEs[i] == ' ':
-                    My_TEs[i] = Player_Name
-                    st.session_state.My_TEs = My_TEs
-                    break
-
-        # Reset the draft trigger flag
-        st.session_state.draft_triggered = False
-
-    # Display the saved input value - don't need but saved to reference on how to call the variable
-    # st.write("Saved Input Value:", st.session_state.input_value)
-
-    ### Undo Options 
-    col1, col2 = st.columns(2)     
-    with col1:
-        if st.button("Undo Your Pick", use_container_width=True):
-            if recently_added_players:  # Check if there are players to undo
-                last_drafted_player = recently_added_players.pop()  # Get the last drafted player
-                player_name = last_drafted_player[0]  # Player name
-                player_position = last_drafted_player[1]  # Player position
-                player_season_points = float(last_drafted_player[2])  # Convert points to float for comparison
-                
-                my_players = [My_QBs, My_RBs, My_WRs, My_TEs]
-                
-                # Check if the last drafted player is in any of the my_players lists
-                if player_name not in My_QBs and player_name not in My_RBs and player_name not in My_WRs and player_name not in My_TEs:
-                    st.warning(f"{player_name} is not on your team. Use the Undo Board Pick button.")
-                    # Optionally, you can push back the last drafted player to recently_added_players
-                    recently_added_players.append(last_drafted_player)  # Add it back so it can be undone later
-                else:
-                    # Add the player back to the data
-                    position_list = st.session_state.data[player_position]
-                    
-                    # Find the correct index to insert the player
-                    insert_index = 0
-                    for index, player in enumerate(position_list):
-                        if float(player[2]) < player_season_points:  # Compare projected points
-                            insert_index = index
-                            break
-                        insert_index = index + 1  # If we don't break, we insert at the end
-    
-                    # Insert the player back to the correct position in the list
-                    position_list.insert(insert_index, (player_name, player_position, last_drafted_player[2], last_drafted_player[3], last_drafted_player[4]))
-                    
-                    # Update the session state with the modified position list
-                    st.session_state.data[player_position] = position_list
-                    
-                    # Remove the player from the user's team and replace with a blank term
-                    if player_position == 'QB':
-                        index = My_QBs.index(player_name)  # Find the index of the drafted player
-                        My_QBs[index] = ' '  # Replace the drafted player with a blank term
-                        st.session_state.My_QBs = My_QBs
-                    elif player_position == 'RB':
-                        index = My_RBs.index(player_name)
-                        My_RBs[index] = ' '
-                        st.session_state.My_RBs = My_RBs
-                    elif player_position == 'WR':
-                        index = My_WRs.index(player_name)
-                        My_WRs[index] = ' '
-                        st.session_state.My_WRs = My_WRs
-                    elif player_position == 'TE':
-                        index = My_TEs.index(player_name)
-                        My_TEs[index] = ' '
-                        st.session_state.My_TEs = My_TEs
-    
-                    st.success(f"Successfully undid your pick of {player_name}.")
-            else:
-                st.warning("No picks to undo.")
-                
-    with col2:
-        if st.button("Undo Board Pick", use_container_width=True):
-            if recently_deleted_players:
-                last_removed_player = recently_deleted_players.pop()  # Get the last drafted player
-                player_name = last_removed_player[0]  # Player name
-                player_position = last_removed_player[1]  # Player position
-                player_season_points = float(last_removed_player[2])  # Convert points to float for comparison
-                
-                #if player is in My_{position} list, then return st.warning("Last player off board was drafted by you, please use the undo draft pick button")
-                my_players = [My_QBs, My_RBs, My_WRs, My_TEs]
-                check_for_player = False
-                for player_check in my_players:
-                    # Check if the term exists in the current list
-                    if player_name in player_check:
-                        check_for_player = True
-                        
-                
-                if check_for_player == True:
-                    st.warning("Last player off board was drafted by you, please use the undo draft pick button")
-                
-                else:                
-                    # Get the list of players for the specific position
-                    position_list = st.session_state.data[player_position]
-                    
-                    # Find the correct index to insert the player
-                    insert_index = 0
-                    for index, player in enumerate(position_list):
-                        if float(player[2]) < player_season_points:  # Compare projected points
-                            insert_index = index
-                            break
-                        insert_index = index + 1  # If we don't break, we insert at the end
-        
-                    # Insert the player back to the correct position in the list
-                    position_list.insert(insert_index, (player_name, player_position, last_removed_player[2], last_removed_player[3], last_removed_player[4]))
-        
-                    # Update the session state with the modified position list
-                    st.session_state.data[player_position] = position_list
-                    
-                    st.success(f"Successfully undid board pick of {player_name}.")
-            else:
-                st.warning("No picks to undo.")
-
-
-    col3, col4 = st.columns(2)
-    ### Manually Draft Player Text Input
-    with col3:
-        def submit1():
-            st.session_state.drafted_player = st.session_state.widget1
-            st.session_state.widget1 = ''
-            st.session_state.button_pressed_draft = True  # Set button pressed to True when input is submitted
-    
-        drafted_player = st.text_input("Manually Draft Player:", key='widget1', on_change=submit1)
-    
-        drafted_player = st.session_state.drafted_player
-        if st.session_state.get('button_pressed_draft', False):  # Check if the input was activated
-            drafted_player_position = 'Not Found'
-            for key in data:
-                for idx, player_tuple in enumerate(data[key]):
-                    if drafted_player.lower() == player_tuple[0].lower():  # Case insensitive comparison
-                        drafted_player_position = player_tuple[1]  # Get the position
-                        deleted_player = data[key].pop(idx)  # Remove and retrieve the player
-                        break  # Exit the loop since the player is found
-    
-            # Update the remaining positions list with new player, and add player to "My Team List"
-            if drafted_player_position == 'QB':
-                st.session_state.Positions_Remaining[0] -= 1
-                for i in range(len(My_QBs)):
-                    if My_QBs[i] == ' ':
-                        My_QBs[i] = drafted_player
-                        st.session_state.My_QBs = My_QBs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
-                        break
-            elif drafted_player_position == 'RB':
-                st.session_state.Positions_Remaining[1] -= 1
-                for i in range(len(My_RBs)):
-                    if My_RBs[i] == ' ':
-                        My_RBs[i] = drafted_player
-                        st.session_state.My_RBs = My_RBs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
-                        break
-            elif drafted_player_position == 'WR':
-                st.session_state.Positions_Remaining[2] -= 1
-                for i in range(len(My_WRs)):
-                    if My_WRs[i] == ' ':
-                        My_WRs[i] = drafted_player
-                        st.session_state.My_WRs = My_WRs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
-                        break
-            elif drafted_player_position == 'TE':
-                st.session_state.Positions_Remaining[3] -= 1
-                for i in range(len(My_TEs)):
-                    if My_TEs[i] == ' ':
-                        My_TEs[i] = drafted_player
-                        st.session_state.My_TEs = My_TEs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
-                        break
-            elif drafted_player_position == 'Not Found':
-                st.error("Player Not Found in Draft Board")
-
-            # Reset the button pressed state after checking
-            st.session_state.button_pressed_draft = False
-    
-    ### Manually Remove Player Text Input
-    with col4:
-        def submit2():
-            st.session_state.removed_player = st.session_state.widget2
-            st.session_state.widget2 = ''
-            st.session_state.button_pressed_remove = True  # Set button pressed to True when input is submitted
-    
-        removed_player = st.text_input("Manually Remove Player From Board:", key='widget2', on_change=submit2)
-    
-        removed_player = st.session_state.removed_player
-        if st.session_state.get('button_pressed_remove', False):  # Check if the input was activated
-            player_found = False
-            for key in data:
-                for idx, player_tuple in enumerate(data[key]):
-                    if removed_player.lower() == player_tuple[0].lower():  # Case insensitive comparison
-                        deleted_player = data[key].pop(idx)  # Remove the player
+    def render_position(col, position_key, label):
+        with col:
+            st.markdown(f'<div class="section-header">Top {label}</div>', unsafe_allow_html=True)
+            available = data[position_key][:10]
+            for player_name, pos, pts, team in available:
+                with st.form(key=f"add_{position_key}_{player_name}"):
+                    st.write(f"{player_name} — {team} — {pts}")
+                    if st.form_submit_button("Add to My Board"):
+                        # Add to user's board and remove from available list
+                        st.session_state.recently_added_players.append((player_name, pos, pts, team))
+                        # remove from data
+                        for i, tpl in enumerate(data[position_key]):
+                            if tpl[0] == player_name:
+                                data[position_key].pop(i)
+                                break
                         st.session_state.data = data
-                        player_found = True
-                        recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3], deleted_player[4]))
-                        st.session_state.recently_deleted_players = recently_deleted_players
-                        break
-    
-            if not player_found:
-                st.error("Player Not Found in Draft Board")
-    
-            # Reset the button pressed state after checking
-            st.session_state.button_pressed_remove = False
+                        st.rerun()
 
-
-
-    ### Player Buttons
-    cola, colb = st.columns(2)
-    
-    with cola:
-        for position in ['RB', 'QB']:
-            available_players = data[position][:4]  # Get the top 4 players for this position
-            st.markdown(f'<div class="player-section" style="text-align: center;">Next {position}s</div>', unsafe_allow_html=True)
-            for player in available_players:
-                player_name = player[0]
-                if st.button(player_name, key=player_name, use_container_width=True):
-                    # Delete Drafted Player from board
-                    for key in data:
-                        for idx, player_tuple in enumerate(data[key]):
-                            if player_name == player_tuple[0]:
-                                deleted_player = data[key].pop(idx)  # Remove the player
-                                removed_player = player_name
-                                st.session_state.data = data
-                                recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3], deleted_player[4]))
-                                st.session_state.recently_deleted_players = recently_deleted_players
-                                st.rerun()
-                                break     
-    
-    with colb:
-        for position in ['WR', 'TE']:
-            available_players = data[position][:4]  # Get the top 4 players for this position
-            st.markdown(f'<div class="player-section" style="text-align: center;">Next {position}s</div>', unsafe_allow_html=True)
-            for player in available_players:
-                player_name = player[0]
-                if st.button(player_name, key=player_name, use_container_width=True):
-                    # Delete Drafted Player from board
-                    for key in data:
-                        for idx, player_tuple in enumerate(data[key]):
-                            if player_name == player_tuple[0]:
-                                deleted_player = data[key].pop(idx)  # Remove the player
-                                removed_player = player_name
-                                st.session_state.data = data
-                                recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3], deleted_player[4]))
-                                st.session_state.recently_deleted_players = recently_deleted_players
-                                st.rerun()
-                                break   
+    render_position(col1, 'QB', 'QBs')
+    render_position(col2, 'RB', 'RBs')
+    render_position(col3, 'WR', 'WRs')
+    render_position(col4, 'TE', 'TEs')
 
     # Sidebar - Team Selection
     st.sidebar.markdown('<div class="section-header">Your Team</div>', unsafe_allow_html=True)
-    
-    # Define a list of positions to iterate over
-    positions = ['QB', 'RB', 'WR', 'TE']
-    
-    # Iterate over each position and display the corresponding players
-    for position in positions:
-        st.sidebar.markdown(f'<div class="player-section">{position}s</div>', unsafe_allow_html=True)
-        
-        # Get the list of players for the current position
-        my_players = st.session_state.get(f'My_{position}s', [])
-        
-        # Display players in a numbered list
-        for i, player in enumerate(my_players, start=1):
-                st.sidebar.text(f"{i}. {player}")
-        
-        
 
+    def render_team(section_label, key_name, count):
+        st.sidebar.markdown(f"**{section_label} ({count})**")
+        slots = getattr(st.session_state, key_name)
+        # Normalize slots length
+        while len(slots) < count:
+            slots.append(' ')
+        for i in range(count):
+            slots[i] = st.sidebar.text_input(f"{section_label[:-1]} {i+1}", slots[i], key=f"{key_name}_{i}")
+        setattr(st.session_state, key_name, slots)
 
+    render_team("QBs", "My_QBs", QBs)
+    render_team("RBs", "My_RBs", RBs)
+    render_team("WRs", "My_WRs", WRs)
+    render_team("TEs", "My_TEs", TEs)
 
-# Main application logic
+    # Undo last add
+    if st.sidebar.button("Undo Add"):
+        if st.session_state.recently_added_players:
+            last = st.session_state.recently_added_players.pop()
+            player_name, player_position, player_points, player_team = last
+            # Insert back into sorted position list by points (desc)
+            position_list = data[player_position]
+            insert_index = 0
+            try:
+                p_pts = float(player_points)
+            except Exception:
+                p_pts = -1e9
+            while insert_index < len(position_list):
+                try:
+                    cur_pts = float(position_list[insert_index][2])
+                except Exception:
+                    cur_pts = -1e9
+                if p_pts >= cur_pts:
+                    break
+                insert_index += 1
+            position_list.insert(insert_index, (player_name, player_position, player_points, player_team))
+            st.session_state.data[player_position] = position_list
+            # Remove from user's team if present
+            for key_name in ["My_QBs","My_RBs","My_WRs","My_TEs"]:
+                slots = getattr(st.session_state, key_name)
+                for i in range(len(slots)):
+                    if slots[i] == player_name:
+                        slots[i] = ' '
+                        break
+                setattr(st.session_state, key_name, slots)
+            st.rerun()
+
+    # Manual remove from board (drafted by others)
+    st.sidebar.markdown('<div class="section-header">Mark Player Drafted (remove from board)</div>', unsafe_allow_html=True)
+    remove_name = st.sidebar.text_input("Player Name to Remove", "")
+    if st.sidebar.button("Remove from Board") and remove_name:
+        found = False
+        for key in list(data.keys()):
+            for idx, tpl in enumerate(list(data[key])):
+                if tpl[0].strip().lower() == remove_name.strip().lower():
+                    deleted_player = data[key].pop(idx)
+                    st.session_state.data = data
+                    st.session_state.recently_deleted_players.append(deleted_player)
+                    found = True
+                    break
+            if found:
+                break
+        st.rerun()
+
+    # Undo remove
+    if st.sidebar.button("Undo Remove"):
+        if st.session_state.recently_deleted_players:
+            last_removed_player = st.session_state.recently_deleted_players.pop()
+            player_name, player_position, player_points, player_team = last_removed_player
+            position_list = data[player_position]
+            insert_index = 0
+            try:
+                p_pts = float(player_points)
+            except Exception:
+                p_pts = -1e9
+            while insert_index < len(position_list):
+                try:
+                    cur_pts = float(position_list[insert_index][2])
+                except Exception:
+                    cur_pts = -1e9
+                if p_pts >= cur_pts:
+                    break
+                insert_index += 1
+            position_list.insert(insert_index, (player_name, player_position, player_points, player_team))
+            st.session_state.data[player_position] = position_list
+            st.rerun()
+
+    # Simple navigation
+    st.sidebar.markdown('<div class="section-header">Navigation</div>', unsafe_allow_html=True)
+    if st.sidebar.button("Back to Start"):
+        st.session_state.page = 'start'
+        st.rerun()
+
+# Router
 if 'page' not in st.session_state:
-    st.session_state.page = "initial"
+    st.session_state.page = 'start'
 
-if st.session_state.page == "initial":
-    initial_page()
+if st.session_state.page == 'start':
+    # Store selections for later use in main_page
+    st.session_state.page_scoring = st.selectbox("Scoring Format", ["Standard", "0.5 PPR", "PPR"], index=2)
+    st.session_state.page_league = st.selectbox("League Size", [8,10,12], index=2)
+    if st.button("Enter"):
+        # Initialize positions for chosen league size
+        if st.session_state.page_league == 8:
+            st.session_state.Positions_Remaining = [2,5,5,1]
+        elif st.session_state.page_league == 10:
+            st.session_state.Positions_Remaining = [2,6,6,1]
+        else:
+            st.session_state.Positions_Remaining = [2,7,6,2]
+        st.session_state.page = 'main'
+        st.rerun()
 else:
     main_page()
