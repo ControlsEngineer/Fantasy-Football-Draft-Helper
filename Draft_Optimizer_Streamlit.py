@@ -291,7 +291,7 @@ def main_page():
                         insert_index = index + 1  # If we don't break, we insert at the end
     
                     # Insert the player back to the correct position in the list
-                    position_list.insert(insert_index, (player_name, player_position, last_drafted_player[2], last_drafted_player[3], last_drafted_player[4]))
+                    position_list.insert(insert_index, (player_name, player_position, last_drafted_player[2], last_drafted_player[3]))
                     
                     # Update the session state with the modified position list
                     st.session_state.data[player_position] = position_list
@@ -351,7 +351,7 @@ def main_page():
                         insert_index = index + 1  # If we don't break, we insert at the end
         
                     # Insert the player back to the correct position in the list
-                    position_list.insert(insert_index, (player_name, player_position, last_removed_player[2], last_removed_player[3], last_removed_player[4]))
+                    position_list.insert(insert_index, (player_name, player_position, last_removed_player[2], last_removed_player[3]))
         
                     # Update the session state with the modified position list
                     st.session_state.data[player_position] = position_list
@@ -388,7 +388,7 @@ def main_page():
                     if My_QBs[i] == ' ':
                         My_QBs[i] = drafted_player
                         st.session_state.My_QBs = My_QBs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
+                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3]))
                         break
             elif drafted_player_position == 'RB':
                 st.session_state.Positions_Remaining[1] -= 1
@@ -396,7 +396,7 @@ def main_page():
                     if My_RBs[i] == ' ':
                         My_RBs[i] = drafted_player
                         st.session_state.My_RBs = My_RBs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
+                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3]))
                         break
             elif drafted_player_position == 'WR':
                 st.session_state.Positions_Remaining[2] -= 1
@@ -404,7 +404,7 @@ def main_page():
                     if My_WRs[i] == ' ':
                         My_WRs[i] = drafted_player
                         st.session_state.My_WRs = My_WRs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
+                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3]))
                         break
             elif drafted_player_position == 'TE':
                 st.session_state.Positions_Remaining[3] -= 1
@@ -412,7 +412,7 @@ def main_page():
                     if My_TEs[i] == ' ':
                         My_TEs[i] = drafted_player
                         st.session_state.My_TEs = My_TEs
-                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3], deleted_player[4]))
+                        recently_added_players.append((drafted_player, drafted_player_position, deleted_player[2], deleted_player[3]))
                         break
             elif drafted_player_position == 'Not Found':
                 st.error("Player Not Found in Draft Board")
@@ -438,7 +438,7 @@ def main_page():
                         deleted_player = data[key].pop(idx)  # Remove the player
                         st.session_state.data = data
                         player_found = True
-                        recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3], deleted_player[4]))
+                        recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3]))
                         st.session_state.recently_deleted_players = recently_deleted_players
                         break
     
@@ -467,7 +467,7 @@ def main_page():
                                 deleted_player = data[key].pop(idx)  # Remove the player
                                 removed_player = player_name
                                 st.session_state.data = data
-                                recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3], deleted_player[4]))
+                                recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3]))
                                 st.session_state.recently_deleted_players = recently_deleted_players
                                 st.rerun()
                                 break     
@@ -486,7 +486,7 @@ def main_page():
                                 deleted_player = data[key].pop(idx)  # Remove the player
                                 removed_player = player_name
                                 st.session_state.data = data
-                                recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3], deleted_player[4]))
+                                recently_deleted_players.append((removed_player, deleted_player[1], deleted_player[2], deleted_player[3]))
                                 st.session_state.recently_deleted_players = recently_deleted_players
                                 st.rerun()
                                 break   
