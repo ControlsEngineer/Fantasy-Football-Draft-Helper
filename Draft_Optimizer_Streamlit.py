@@ -1,9 +1,9 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import csv
-from urllib.parse import quote
 from Player_Selector import *
 
-# ---------- Styles ----------
+# ---------- Global styles ----------
 st.markdown("""
     <style>
         .main-title {
@@ -30,8 +30,6 @@ st.markdown("""
             padding: 15px;
             border-radius: 10px;
         }
-
-        /* Legacy Streamlit button styling left intact in case you add more buttons elsewhere */
         .stButton>button {
             background-color: #212121; /* Dark Gray */
             color: #ffffff; /* White text */
@@ -44,95 +42,93 @@ st.markdown("""
             white-space: nowrap;
         }
         .stButton>button:hover {
-            background-color: rgba(119, 119, 119, 0.5); /* Lighter Gray with opacity on Hover */
+            background-color: rgba(119, 119, 119, 0.5);
         }
-
         .stTextInput>div>div>input {
             background-color: #f7f9fa;
             border-radius: 5px;
             border: 1px solid #bdc3c7;
             padding: 8px;
         }
-
-        /* New: Custom "button" with rich inner layout (name + small points) */
-        .player-btn {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            gap: 10px;
-            width: 100%;
-            box-sizing: border-box;
-            padding: 10px 14px;
-            margin: 6px 0;
-            border-radius: 8px;
-            background: #212121;
-            color: #ffffff !important;
-            text-decoration: none !important;
-            border: none;
-            cursor: pointer;
-        }
-        .player-btn:hover {
-            background: rgba(119, 119, 119, 0.5);
-        }
-        .player-name {
-            font-size: 16px;
-            font-weight: 700;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .player-pts {
-            font-size: 12px;
-            opacity: 0.85;
-            white-space: nowrap;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-# ---------- Helpers for query params (new for HTML-button clicks) ----------
-def _get_query_params():
-    """Robustly read query params across Streamlit versions."""
-    try:
-        # Newer Streamlit exposes a dict-like mapping
-        return dict(st.query_params)
-    except Exception:
-        # Fallback for older versions
-        return st.experimental_get_query_params()
-
-def _clear_query_params(keys):
-    """Remove specific keys from query params safely."""
-    try:
-        # Newer API
-        qp = dict(st.query_params)
-        for k in keys:
-            if k in qp:
-                qp.pop(k, None)
-        st.query_params.clear()
-        for k, v in qp.items():
-            # st.query_params expects scalars; handle list values too
-            if isinstance(v, (list, tuple)) and len(v) == 1:
-                st.query_params[k] = v[0]
-            else:
-                st.query_params[k] = v
-    except Exception:
-        # Older API
-        qp = st.experimental_get_query_params()
-        for k in keys:
-            qp.pop(k, None)
-        st.experimental_set_query_params(**qp)
-
-def _html_player_button(player_name, points, pos):
-    """Return HTML for a two-line-styled 'button' with name and small 'Pts: XX' inside."""
-    # Encode params for the URL
-    name_q = quote(str(player_name))
-    pos_q = quote(str(pos))
-    href = f"?pick={name_q}&pos={pos_q}"
-    return (
-        f'<a class="player-btn" href="{href}">'
-        f'  <span class="player-name">{player_name}</span>'
-        f'  <span class="player-pts">Pts: {points}</span>'
-        f'</a>'
-    )
+# ---------- Component: rich "player button" that returns a click payload ----------
+def player_pick_button(player_name: str, points: str, pos: str, key: str):
+    """
+    Render a custom-styled button (name + small right-aligned 'Pts: XX')
+    and return a dict {'player': name, 'pos': pos} when clicked.
+    """
+    # Inline HTML/CSS/JS lives inside an iframe; styles here won't leak
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body {{
+    margin: 0; padding: 0;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+  }}
+  .player-btn {{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    margin: 6px 0;
+    border-radius: 8px;
+    background: #212121;
+    color: #ffffff;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+  }}
+  .player-btn:hover {{ background: rgba(119, 119, 119, 0.5); }}
+  .player-name {{
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }}
+  .player-pts {{
+    font-size: 12px;
+    opacity: 0.85;
+    white-space: nowrap;
+    margin-left: 12px;
+  }}
+  /* Reset button native styles for consistency across browsers */
+  button {{
+    all: unset;
+    display: block;
+  }}
+</style>
+</head>
+<body>
+  <button id="btn" class="player-btn" title="{player_name}">
+    <span class="player-name">{player_name}</span>
+    <span class="player-pts">Pts: {points}</span>
+  </button>
+  <script>
+    // Streamlit component handshake: send a value back on click
+    const send = (v) => {{
+      window.parent.postMessage(
+        {{ isStreamlitMessage: true, type: "streamlit:setComponentValue", value: v }},
+        "*"
+      );
+    }};
+    document.getElementById("btn").addEventListener("click", () => {{
+      send({{player: {repr(player_name)}, pos: {repr(pos)}}});
+    }});
+  </script>
+</body>
+</html>
+"""
+    # height ~48 to align with native buttons; adjust if you prefer
+    return components.html(html, height=48, scrolling=False, key=key)
 
 ### initialize variables to stay keep throughout
 def initialize_session_state():
@@ -243,27 +239,6 @@ def main_page():
             for player, position, points, team in list(reader):
                 if position in data:
                     data[position].append((player, position, points, team))
-
-    # Handle HTML "button" click via query params (?pick=Name&pos=POS)
-    qp = _get_query_params()
-    if 'pick' in qp and 'pos' in qp:
-        # qp values may be lists depending on Streamlit version
-        picked_name = qp['pick'][0] if isinstance(qp['pick'], list) else qp['pick']
-        picked_pos  = qp['pos'][0]  if isinstance(qp['pos'],  list) else qp['pos']
-
-        # Remove from board and track in recently_deleted_players
-        for idx, player_tuple in enumerate(data.get(picked_pos, [])):
-            if picked_name == player_tuple[0]:
-                deleted_player = data[picked_pos].pop(idx)
-                st.session_state.data = data
-                st.session_state.recently_deleted_players.append(
-                    (deleted_player[0], deleted_player[1], deleted_player[2], deleted_player[3])
-                )
-                break
-
-        # Clear processed query params and rerun to avoid duplicate handling
-        _clear_query_params(['pick', 'pos'])
-        st.rerun()
 
     recently_added_players = st.session_state.recently_added_players # List to keep track of players added by the user in order
     recently_deleted_players = st.session_state.recently_deleted_players # Stack to keep track of players deleted from the board
@@ -552,27 +527,48 @@ def main_page():
 
 
 
-    ### Player Buttons (rendered as HTML links with name + small points inside)
+    ### Player Buttons (now rich buttons via component; same behavior as before)
     cola, colb = st.columns(2)
-    
+
+    def handle_board_click(payload):
+        """Remove clicked player from board and push to 'recently_deleted_players'."""
+        if not payload:
+            return
+        player_name = payload.get("player")
+        player_pos = payload.get("pos")
+        if not player_name or not player_pos:
+            return
+        # Remove from board
+        position_list = st.session_state.data.get(player_pos, [])
+        for idx, player_tuple in enumerate(position_list):
+            if player_name == player_tuple[0]:
+                deleted_player = position_list.pop(idx)
+                st.session_state.data[player_pos] = position_list
+                st.session_state.recently_deleted_players.append(
+                    (deleted_player[0], deleted_player[1], deleted_player[2], deleted_player[3])
+                )
+                st.rerun()
+                break
+
     with cola:
         for position in ['RB', 'QB']:
             available_players = data[position][:4]  # Get the top 4 players for this position
             st.markdown(f'<div class="player-section" style="text-align: center;">Next {position}s</div>', unsafe_allow_html=True)
-            for player in available_players:
+            for i, player in enumerate(available_players):
                 player_name = player[0]
                 player_points = player[2]  # third column from CSV
-                # Render as a styled link that looks like a button; clicking sets ?pick=<name>&pos=<position>
-                st.markdown(_html_player_button(player_name, player_points, position), unsafe_allow_html=True)
+                payload = player_pick_button(player_name, player_points, position, key=f"btn-{position}-{i}-{player_name}")
+                handle_board_click(payload)
     
     with colb:
         for position in ['WR', 'TE']:
             available_players = data[position][:4]  # Get the top 4 players for this position
             st.markdown(f'<div class="player-section" style="text-align: center;">Next {position}s</div>', unsafe_allow_html=True)
-            for player in available_players:
+            for i, player in enumerate(available_players):
                 player_name = player[0]
                 player_points = player[2]  # third column from CSV
-                st.markdown(_html_player_button(player_name, player_points, position), unsafe_allow_html=True)
+                payload = player_pick_button(player_name, player_points, position, key=f"btn-{position}-{i}-{player_name}")
+                handle_board_click(payload)
 
     # Sidebar - Team Selection
     st.sidebar.markdown('<div class="section-header">Your Team</div>', unsafe_allow_html=True)
