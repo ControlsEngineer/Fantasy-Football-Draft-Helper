@@ -9,7 +9,7 @@ def TE_Selector(data,TEs,league_size):
     VOR = league_size*1 #Value over replacement, used for averaging replacement value below. Set to *1 for QBs and TEs, *2 for RBs and WRs
     
     # CSV numbers import as strings. Convert projected points to float
-    TEs = [(player, position, float(points), team, adp) for player, position, points, team, adp in TEs]
+    TEs = [(player, position, float(points), team) for player, position, points, team in TEs]
 
 
     #Find highest ranked TE remaining on overall list, and determine their rank
@@ -21,7 +21,6 @@ def TE_Selector(data,TEs,league_size):
         TE_Name = data['TE'][i][0]
         TE_Points = data['TE'][i][2]
         TE_Team = data['TE'][i][3]
-        TE_ADP = data['TE'][i][4]
         break
 
     for i in range(len(data['TE'])): 
@@ -52,4 +51,4 @@ def TE_Selector(data,TEs,league_size):
     # Calculate the value of replacement
     TE_Value_Over_Replacement = float(data['TE'][Rank][2]) - TE_Replacement_Value
     
-    return (TE_Name,TE_Points,TE_Team,TE_ADP,TE_Value_Over_Replacement,TE_Replacement_Value)
+    return (TE_Name,TE_Points,TE_Team,TE_Value_Over_Replacement,TE_Replacement_Value)

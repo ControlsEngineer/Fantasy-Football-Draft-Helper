@@ -9,7 +9,7 @@ def RB_Selector(data,RBs,league_size):
     VOR = league_size*2 #Value over replacement, used for averaging replacement value below. Set to *1 for QBs and TEs, *2 for RBs and WRs
     
     # CSV numbers import as strings. Convert projected points to float
-    RBs = [(player, position, float(points), team, adp) for player, position, points, team, adp in RBs]
+    RBs = [(player, position, float(points), team) for player, position, points, team in RBs]
 
 
     #Find highest ranked RB remaining on overall list, and determine their rank
@@ -21,7 +21,6 @@ def RB_Selector(data,RBs,league_size):
         RB_Name = data['RB'][i][0]
         RB_Points = data['RB'][i][2]
         RB_Team = data['RB'][i][3]
-        RB_ADP = data['RB'][i][4]
         break
 
     for i in range(len(data['RB'])): 
@@ -52,4 +51,4 @@ def RB_Selector(data,RBs,league_size):
     # Calculate the value of replacement
     RB_Value_Over_Replacement = float(data['RB'][Rank][2]) - RB_Replacement_Value
     
-    return (RB_Name,RB_Points,RB_Team,RB_ADP,RB_Value_Over_Replacement,RB_Replacement_Value)
+    return (RB_Name,RB_Points,RB_Team,RB_Value_Over_Replacement,RB_Replacement_Value)

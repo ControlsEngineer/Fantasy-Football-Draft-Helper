@@ -9,7 +9,7 @@ def WR_Selector(data,WRs,league_size):
     VOR = league_size*2 #Value over replacement, used for averaging replacement value below. Set to *1 for QBs and TEs, *2 for RBs and WRs
     
     # CSV numbers import as strings. Convert projected points to float
-    WRs = [(player, position, float(points), team, adp) for player, position, points, team, adp in WRs]
+    WRs = [(player, position, float(points), team) for player, position, points, team in WRs]
 
 
     #Find highest ranked WR remaining on overall list, and determine their rank
@@ -21,7 +21,6 @@ def WR_Selector(data,WRs,league_size):
         WR_Name = data['WR'][i][0]
         WR_Points = data['WR'][i][2]
         WR_Team = data['WR'][i][3]
-        WR_ADP = data['WR'][i][4]
         break
 
     for i in range(len(data['WR'])): 
@@ -52,4 +51,4 @@ def WR_Selector(data,WRs,league_size):
     # Calculate the value of replacement
     WR_Value_Over_Replacement = float(data['WR'][Rank][2]) - WR_Replacement_Value
     
-    return (WR_Name,WR_Points,WR_Team,WR_ADP,WR_Value_Over_Replacement,WR_Replacement_Value)
+    return (WR_Name,WR_Points,WR_Team,WR_Value_Over_Replacement,WR_Replacement_Value)

@@ -9,7 +9,7 @@ def QB_Selector(data,QBs,league_size):
     VOR = league_size*1 #Value over replacement, used for averaging replacement value below. Set to *1 for QBs and TEs, *2 for RBs and WRs
     
     # CSV numbers import as strings. Convert projected points to float
-    QBs = [(player, position, float(points), team, adp) for player, position, points, team, adp in QBs]
+    QBs = [(player, position, float(points), team) for player, position, points, team in QBs]
 
 
     #Find highest ranked QB remaining on overall list, and determine their rank
@@ -21,7 +21,6 @@ def QB_Selector(data,QBs,league_size):
         QB_Name = data['QB'][i][0]
         QB_Points = data['QB'][i][2]
         QB_Team = data['QB'][i][3]
-        QB_ADP = data['QB'][i][4]
         break
 
     for i in range(len(data['QB'])): 
@@ -52,4 +51,4 @@ def QB_Selector(data,QBs,league_size):
     # Calculate the value of replacement
     QB_Value_Over_Replacement = float(data['QB'][Rank][2]) - QB_Replacement_Value
     
-    return (QB_Name,QB_Points,QB_Team,QB_ADP,QB_Value_Over_Replacement,QB_Replacement_Value)
+    return (QB_Name,QB_Points,QB_Team,QB_Value_Over_Replacement,QB_Replacement_Value)
