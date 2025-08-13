@@ -100,29 +100,35 @@ def show_popup(data, QBs, RBs, WRs, TEs, Positions_Remaining, league_size):
 
 # Function to create the initial page
 def initial_page():
-    st.header("Welcome to the Fantasy Football Draft Aid - 2024")
+    st.header("Welcome to the Fantasy Football Draft Aid - 2025")
     st.write("Select your draft settings below.")
     
     league_size = st.selectbox("League Size", [8, 10, 12], help="Choose your league size")
     scoring_format = st.selectbox("Scoring Format", ["Standard", "0.5 PPR", "PPR"], help="Select your scoring format")
     
-    draft_limits = {
-        "Number of QBs to Draft": {"min": 1, "max": 5, "default": 2},
-        "Number of RBs to Draft": {"min": 1, "max": 7, "default": 5},
-        "Number of WRs to Draft": {"min": 1, "max": 7, "default": 5},
-        "Number of TEs to Draft": {"min": 1, "max": 5, "default": 1}
-    }
+    # Set draft position quantities based on league size
+    if league_size == 8:
+        draft_count = {
+            "Number of QBs to Draft": 2,
+            "Number of RBs to Draft": 5,
+            "Number of WRs to Draft": 5,
+            "Number of TEs to Draft": 1
+        }
+    elif league_size == 10:
+        draft_count = {
+            "Number of QBs to Draft": 2,
+            "Number of RBs to Draft": 6,
+            "Number of WRs to Draft": 6,
+            "Number of TEs to Draft": 1
+        }
+    else:  # 12-team league
+        draft_count = {
+            "Number of QBs to Draft": 2,
+            "Number of RBs to Draft": 7,
+            "Number of WRs to Draft": 6,
+            "Number of TEs to Draft": 2
+        }
     
-    draft_count = {}
-    for position, limits in draft_limits.items():
-        draft_count[position] = st.number_input(
-            position,
-            min_value=limits["min"],
-            max_value=limits["max"],
-            value=limits["default"],
-            help=f"Select the number of {position.split()[2]}s to draft"
-        )
-        
     if st.button("Enter"):
         st.session_state.league_size = league_size
         st.session_state.scoring_format = scoring_format
@@ -132,7 +138,7 @@ def initial_page():
 
 # Function to create the main page
 def main_page():
-    st.markdown('<div class="main-title">Fantasy Football Draft Aid 2024</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">Fantasy Football Draft Aid 2025</div>', unsafe_allow_html=True)
     st.write(' ')
     league_size = st.session_state.get("league_size", "8")
     scoring_format = st.session_state.get("scoring_format", "0.5 PPR")
